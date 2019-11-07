@@ -1,17 +1,14 @@
-import React, {
-  Component,
-} from 'react';
+import React, {Component} from "react";
+import PropTypes from 'prop-types';
 import {
   StyleSheet,
   Text,
   ScrollView,
   View,
   Platform,
-  ViewPropTypes,
   TouchableWithoutFeedback,
+  ViewPropTypes,
 } from 'react-native';
-
-import PropTypes from 'prop-types';
 
 const defaultForegroundColor = '#444';
 const defaultItemWidth = 30;
@@ -20,7 +17,7 @@ const loggingEnabled = false;
 const itemPropTypes = {
   label: PropTypes.string.isRequired,
   value: PropTypes.any,
-  style: Text.propTypes.style,
+  style: ViewPropTypes.style,
   foregroundColor: PropTypes.string,
 };
 const itemDefaultProps = {
@@ -48,8 +45,7 @@ const propTypes = {
   itemWidth: PropTypes.number.isRequired,
   onChange: PropTypes.func,
   renderOverlay: PropTypes.func,
-  foregroundColor: PropTypes.string,
-  inactiveItemOpacity: PropTypes.number
+  foregroundColor: PropTypes.string
 };
 
 const defaultProps = {
@@ -72,24 +68,46 @@ class HorizontalPicker extends Component {
     this.scrollX = -1;
     this.ignoreNextScroll = false;
     this.snapDelay = 200;
+    this.isMaxed = false;
   }
 
   static Item = HorizontalPickerItem
 
   componentWillReceiveProps(nextProps) {
     log('componentWillReceiveProps (isScrolling:', this.isScrolling, ')', this.props.selectedValue, '->', nextProps.selectedValue);
-    const valueChanged = this.props.selectedValue !== nextProps.selectedValue;
+    if(nextProps.selectedValue > 300){
+      var selectedValue = 300;
+      this.isMaxed = true;
+    } else {
+      var selectedValue = nextProps.selectedValue;
+      this.isMaxed = false;
+    }
+    const valueChanged = this.props.selectedValue !== selectedValue;
 
-    const index = this.getIndexForValue(nextProps.selectedValue, nextProps.children);
-    const previousIndex = this.getIndexForValue(nextProps.selectedValue, this.props.children);
+
+    const index = this.getIndexForValue(selectedValue, nextProps.children);
+    const previousIndex = this.getIndexForValue(selectedValue, this.props.children);
     const rangeChanged = index !== previousIndex;
     log('current index', index);
     log('previous index', previousIndex);
 
+    // If the user changes the item width, update the padding of the picker so everything aligns
+    if(nextProps.itemWidth != this.props.itemWidth){
+      var padding = {
+        left: !this.state.bounds ? 0 : ((this.state.bounds.width - nextProps.itemWidth) / 2),
+        right: !this.state.bounds ? 0 : ((this.state.bounds.width - nextProps.itemWidth) / 2)
+      };
+      log('componentWillReceiveProps padding',padding)
+      // Update the padding, then after, scroll to the correct index. (later down the function, this scrolls again, but idk it works so...)
+      this.setState({padding:padding},()=>{this.scrollToIndex(index, false);});
+      this.scrollToIndex(index, false);
+    }
+
+
     log('x:', this.scrollX);
-    log('current value:', nextProps.selectedValue);
+    log('current value:', selectedValue);
     const visibleValue = this.getValueAt(this.scrollX);
-    const visualsChanged = nextProps.selectedValue !== visibleValue;
+    const visualsChanged = selectedValue !== visibleValue;
     log('visible value:', visibleValue);
 
     log('valueChanged:', valueChanged);
@@ -112,10 +130,10 @@ class HorizontalPicker extends Component {
     } else if (valueChanged) {
       log('valueChanged -> scroll');
       this.scrollToIndex(index, true);
-    } else if (visualsChanged) {
+    } else if (!this.isScrolling && visualsChanged) {
       // Check if the current value is even possible.
       // If not, we don't know where to scroll, so ignore.
-      const indexForSelectedValue = this.getIndexForValue(nextProps.selectedValue, nextProps.children);
+      const indexForSelectedValue = this.getIndexForValue(selectedValue, nextProps.children);
       log('visualsChanged -> scroll');
       if (indexForSelectedValue !== -1) {
         this.scrollToIndex(indexForSelectedValue, true);
@@ -171,7 +189,17 @@ class HorizontalPicker extends Component {
     // Make sure the component hasn't been unmounted
     if (this.refs.scrollview) {
       log('scroll ->', snapX);
-      this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
+      
+        
+      // Dan's edit. For some reason it needs to be delayed on android otherwise it won't scroll. No clue... :(
+      if (Platform.OS === 'android') {
+        setTimeout(() => {
+          this.refs.scrollview.scrollTo({x: snapX, y: 0, animated:true});
+        }, 1);
+      } else {
+        this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
+      }
+
 
       // iOS fix
       if (!initial && Platform.OS === 'ios') {
@@ -230,8 +258,7 @@ class HorizontalPicker extends Component {
   delayedSnap = () => {
     log('delayedSnap, cancelling previous...');
     this.cancelDelayedSnap();
-    log('scheduling the snap');
-    log('delayedSnap');
+    log('delayedSnap, scheduling the snap');
     this.snapNoMomentumTimeout =
       setTimeout(() => {
         const index = this.getIndexAt(this.scrollX);
@@ -252,15 +279,18 @@ class HorizontalPicker extends Component {
   }
 
   onChange = (itemValue) => {
-    log('onChange', itemValue);
-    if (this.props.onChange) {
-      this.props.onChange(itemValue);
+    log('onChange', itemValue, this.props.selectedValue);
+    if (typeof this.props.onChange == 'function') {
+      if(!this.isMaxed){
+        this.props.onChange(itemValue);
+      }
     }
   }
 
   handleItemPress = (value) => {
+    log('handleItemPress', value);
     return () => {
-      if (value && this.props.onChange) {
+      if (value && typeof this.props.onChange == 'function') {
         this.props.onChange(value);
       }
     };
@@ -271,17 +301,41 @@ class HorizontalPicker extends Component {
   }
 
   renderChild = (child) => {
+    // vKey = key: 1, 2, 3
+    // value = displayed value: 5, 10, 15
     const itemValue = child.props.value;
     const color = this.props.foregroundColor || defaultForegroundColor;
-    const opacity = this.props.inactiveItemOpacity && itemValue !== this.props.selectedValue ? this.props.inactiveItemOpacity : 1
+    const isLarger = child.props.vKey == 1 || child.props.vKey % 5 == 0;
     return (
-      <TouchableWithoutFeedback key={itemValue} onPress={this.handleItemPress(itemValue)}>
-        <View style={[styles.itemContainer, {width: this.getItemWidth()}]}>
-          <Text style={[styles.itemText, child.props.style, {color, opacity}]}>{child.props.label}</Text>
-        </View>
-      </TouchableWithoutFeedback>
+      <View
+        key={itemValue}>
+        <TouchableWithoutFeedback
+          style={{overflow:'visible'}}
+          onPress={(v) => this.props.onChange(itemValue)}
+          >
+          <View style={[styles.itemContainer, {flexDirection:'column',flex:1,width: this.getItemWidth()}]}>
+            <View style={[{borderRightColor:'#fff',borderRightWidth:1,height:isLarger ? 14 : 9}]}></View>
+            <View style={[{borderRightColor:'#fff',borderRightWidth:1,height:isLarger ? 14 : 9}]}></View>
+          </View>
+        </TouchableWithoutFeedback>
+        {(isLarger || this.getItemWidth() == 30) &&
+          <View style={[StyleSheet.absoluteFill,{justifyContent:'center'}]}>
+            <Text style={[{marginHorizontal:-10},isLarger ? styles.itemText : styles.itemTextSmall, child.props.style]}>{child.props.label}</Text>
+          </View>
+        }
+      </View>
     );
   }
+
+// ,,justifyContent: 'center',alignSelf:'stretch',
+      // <View style={[s.rowItem,{width:this.itemSize,alignItems:'center',justifyContent:'space-between'}]}>
+      //   <View style={[{marginHorizontal:-10}]}>
+      //   {isLarger &&
+      //     <Text style={[s.white,s.small,s.center]} numberOfLines={1}>{this.props.i}</Text>
+      //   }
+      //   </View>
+      // </View>
+
 
   onLayout = (event) => {
     log('onLayout');
@@ -289,15 +343,16 @@ class HorizontalPicker extends Component {
     const bounds = {width, height};
     const leftItemWidth = this.getItemWidth();
     const rightItemWidth = this.getItemWidth();
-    const padding = {
+    var padding = {
       left: !bounds ? 0 : ((bounds.width - leftItemWidth) / 2),
       right: !bounds ? 0 : ((bounds.width - rightItemWidth) / 2)
     };
-
     this.setState({
       bounds,
       padding
     });
+    log('ONLAYOUT PADDING',padding)
+    log('ONLAYOUT selectedValue',this.props.selectedValue)
 
     const index = this.getIndexForValue(this.props.selectedValue);
     log('onLayout -> scrollToIndex');
@@ -307,7 +362,7 @@ class HorizontalPicker extends Component {
   renderDefaultOverlay = () => {
     const color = this.props.foregroundColor;
     return (
-      <View style={{flex: 1}} />
+      <View style={{flex: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: color}} />
     );
   }
 
@@ -318,10 +373,12 @@ class HorizontalPicker extends Component {
       <View style={[this.props.style]}>
         <ScrollView
           ref='scrollview'
-          decelerationRate={'fast'}
+          decelerationRate={0.993}
           scrollEventThrottle={16}
           contentContainerStyle={{paddingLeft: this.state.padding.left, paddingRight: this.state.padding.right}}
           showsHorizontalScrollIndicator={false}
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="handled"
           horizontal={true}
           onScroll={this.onScroll}
           onScrollBeginDrag={this.onScrollBeginDrag}
@@ -335,7 +392,7 @@ class HorizontalPicker extends Component {
           </View>
         </ScrollView>
         <View style={styles.overlay} pointerEvents='none'>
-          <View style={[{flex: 1, width: this.getItemWidth()}]}>
+          <View style={[{flex: 1,alignItems:'center',width: this.getItemWidth()*2}]}>
             {renderOverlay()}
           </View>
         </View>
@@ -359,9 +416,9 @@ var styles = StyleSheet.create({
     flexDirection: 'row'
   },
   itemContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center'
   },
   item: {
@@ -372,8 +429,14 @@ var styles = StyleSheet.create({
     backgroundColor: 'yellow'
   },
   itemText: {
-    fontSize: 20,
-    textAlign: 'center'
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#ffffff'
+  },
+  itemTextSmall: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#b69bda'
   },
   overlay: {
     position: 'absolute',
