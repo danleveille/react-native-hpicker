@@ -191,14 +191,14 @@ class HorizontalPicker extends Component {
       log('scroll ->', snapX);
       
         
-      // Dan's edit. For some reason it needs to be delayed on android otherwise it won't scroll. No clue... :(
-      if (Platform.OS === 'android') {
+      // Dan's edit. For some reason it needs to be delayed, otherwise it won't scroll. Possibly: https://github.com/facebook/react-native/issues/24531
+      //if (Platform.OS === 'android') {
         setTimeout(() => {
           this.refs.scrollview.scrollTo({x: snapX, y: 0, animated:true});
         }, 1);
-      } else {
-        this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
-      }
+      //} else {
+      //  this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
+      //}
 
 
       // iOS fix
