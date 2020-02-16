@@ -191,14 +191,14 @@ class HorizontalPicker extends Component {
       log('scroll ->', snapX);
       
         
-      // Dan's edit. For some reason it needs to be delayed, otherwise it won't scroll. Possibly: https://github.com/facebook/react-native/issues/24531
-      //if (Platform.OS === 'android') {
+      // Dan's edit. For some reason it needs to be delayed on android otherwise it won't scroll. No clue... :(
+      // if (Platform.OS === 'android') {
         setTimeout(() => {
           this.refs.scrollview.scrollTo({x: snapX, y: 0, animated:true});
         }, 1);
-      //} else {
-      //  this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
-      //}
+      // } else {
+      //   this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
+      // }
 
 
       // iOS fix
@@ -309,20 +309,20 @@ class HorizontalPicker extends Component {
     return (
       <View
         key={itemValue}>
+        {(isLarger || this.getItemWidth() == 30) &&
+          <View style={[StyleSheet.absoluteFill,{justifyContent:'center'}]}>
+            <Text style={[{marginHorizontal:-10},isLarger ? styles.itemText : styles.itemTextSmall, child.props.style]}>{child.props.label}</Text>
+          </View>
+        }
         <TouchableWithoutFeedback
           style={{overflow:'visible'}}
-          onPress={(v) => this.props.onChange(itemValue)}
+          onPress={(v) => this.onChange(itemValue)}
           >
           <View style={[styles.itemContainer, {flexDirection:'column',flex:1,width: this.getItemWidth()}]}>
             <View style={[{borderRightColor:'#fff',borderRightWidth:1,height:isLarger ? 14 : 9}]}></View>
             <View style={[{borderRightColor:'#fff',borderRightWidth:1,height:isLarger ? 14 : 9}]}></View>
           </View>
         </TouchableWithoutFeedback>
-        {(isLarger || this.getItemWidth() == 30) &&
-          <View style={[StyleSheet.absoluteFill,{justifyContent:'center'}]}>
-            <Text style={[{marginHorizontal:-10},isLarger ? styles.itemText : styles.itemTextSmall, child.props.style]}>{child.props.label}</Text>
-          </View>
-        }
       </View>
     );
   }
