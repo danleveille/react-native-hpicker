@@ -193,9 +193,10 @@ class HorizontalPicker extends Component {
         
       // Dan's edit. For some reason it needs to be delayed on android otherwise it won't scroll. No clue... :(
       // if (Platform.OS === 'android') {
-        setTimeout(() => {
-          this.refs.scrollview.scrollTo({x: snapX, y: 0, animated:true});
-        }, 1);
+      setTimeout(() => {
+        // I did "snapX || i" because sometimes snapX is undefined if the user closes the view quickly, which causes an error.
+        this.refs.scrollview.scrollTo({x: snapX || 0, y: 0, animated:true});
+      }, 1);
       // } else {
       //   this.refs.scrollview.scrollTo({x: snapX, y: 0, animated});
       // }
