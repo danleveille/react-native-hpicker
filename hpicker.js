@@ -7,8 +7,8 @@ import {
   View,
   Platform,
   TouchableWithoutFeedback,
-  ViewPropTypes,
 } from 'react-native';
+import { ViewPropTypes } from 'deprecated-react-native-prop-types';
 
 const defaultForegroundColor = '#444';
 const defaultItemWidth = 30;
